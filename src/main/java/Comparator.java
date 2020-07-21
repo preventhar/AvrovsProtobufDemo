@@ -16,7 +16,6 @@ import org.joda.time.LocalDate;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,23 +25,61 @@ public class Comparator {
     private final static String AVRO_SERIAL_FILE = "./src/main/data/person_v1.1.avro";
     private final static String PROTO_SERIAL_FILE = "./src/main/data/person_v1.1.bin";
 
-    public static void main(String args[]) throws IOException {
-        avrowrite();
-        avroRead();
-        protoWrite();
-        protoRead();
+    public static void main(String args[]) throws Exception {
+
+        try {
+            System.out.println("Avro is going to serialize");
+            long startTime = System.currentTimeMillis();
+            avrowrite();
+            long endTime = System.currentTimeMillis();
+            long timeElapsed = endTime - startTime;
+            System.out.println("Avro Serialization time in ms " + timeElapsed);
+
+            System.out.println("Avro is going to de-serialize");
+            startTime = System.currentTimeMillis();
+            avroRead();
+            endTime = System.currentTimeMillis();
+            timeElapsed = endTime - startTime;
+            System.out.println("Avro de-serialization time in ms " + timeElapsed);
+
+
+            System.out.println("Proto is going to serialize");
+            startTime = System.currentTimeMillis();
+            protoWrite();
+            endTime = System.currentTimeMillis();
+            timeElapsed = endTime - startTime;
+            System.out.println("Proto serialization time in ms " + timeElapsed);
+
+            System.out.println("Proto is going to de-serialize");
+            startTime = System.currentTimeMillis();
+            protoRead();
+            endTime = System.currentTimeMillis();
+            timeElapsed = endTime - startTime;
+            System.out.println("Proto de-serialization time in ms " + timeElapsed);
+
+        } catch(Exception e) {
+            System.out.println("The exception is......");
+            System.out.println("Trace....");
+            e.printStackTrace();
+            System.out.println("Message is...."+ e.getMessage());
+        }
     }
 
-    public static void avrowrite() throws IOException {
-        List<Person> persons = new ArrayList<Person>();
-        List<Address> addresses = new ArrayList<Address>();
+    public static void avrowrite() throws Exception {
 
+        File avroFile = new File(AVRO_SERIAL_FILE);
+        if (avroFile.exists()) {
+            avroFile.delete();
+        }
+        avroFile.createNewFile();
+
+        List<Address> addresses = new ArrayList<Address>();
         addresses.add(Address.newBuilder()
                 .setId(1)
                 .setStreetAndNr("Somestreet 10")
                 .setZipAndCity("9332 Somecity").build());
 
-        Person person1 = Person.newBuilder().setId(1)
+        Person persons = Person.newBuilder().setId(1)
                 .setFirstName("Peter")
                 .setMiddleName("Paul")
                 .setLastName("Sample")
@@ -51,53 +88,32 @@ public class Comparator {
                 .setTitle(TitleEnum.Mr)
                 .setBirthDate(new LocalDate("1995-11-10"))
                 .setAddresses(addresses).build();
-        persons.add(person1);
 
         final DatumWriter<Person> datumWriter = new SpecificDatumWriter<>(Person.class);
         final DataFileWriter<Person> dataFileWriter = new DataFileWriter<>(datumWriter);
-
-        try {
-            File avroFile =  new File(AVRO_SERIAL_FILE);
-            if(avroFile.exists()) {
-                avroFile.delete();
-            }
-            avroFile.createNewFile();
-
-            dataFileWriter.create(persons.get(0).getSchema(), avroFile);
-            persons.forEach(employee -> {
-                try {
-                    dataFileWriter.append(employee);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-
-            });
-        } catch (IOException e) {
-            throw new RuntimeException();
-        }
-        finally {
-            dataFileWriter.close();
-        }
+        dataFileWriter.create(persons.getSchema(), avroFile);
+        dataFileWriter.append(persons);
+        dataFileWriter.close();
     }
 
-    public static void avroRead() throws IOException {
+    public static void avroRead() throws Exception {
         final File file = new File(AVRO_SERIAL_FILE);
-        final List<Person> persons = new ArrayList<>();
+        final Person persons;
         final DatumReader<Person> personReader = new SpecificDatumReader<>(Person.SCHEMA$);
         final DataFileReader<Person> dataFileReader = new DataFileReader<>(file, personReader);
-
-        while (dataFileReader.hasNext()) {
-            persons.add(dataFileReader.next(new Person()));
-        }
-
-        for (Person person : persons) {
-            System.out.println(person);
-        }
+        persons = dataFileReader.next(new Person());
+        System.out.println(persons);
     }
 
-    public static void protoWrite() throws IOException {
-        List<AddressWrapper.Addresss> addresses = new ArrayList<>();
+    public static void protoWrite() throws Exception {
 
+        File protoFile = new File(PROTO_SERIAL_FILE);
+        if (protoFile.exists()) {
+            protoFile.delete();
+        }
+        protoFile.createNewFile();
+
+        List<AddressWrapper.Addresss> addresses = new ArrayList<>();
         addresses.add(AddressWrapper.Addresss.newBuilder()
                 .setId(1)
                 .setStreetAndNr("Somestreet 10")
@@ -117,20 +133,13 @@ public class Comparator {
                 .setBirthDate(timestamp)
                 .addAllAddresses(addresses).build();
 
-        File protoFile =  new File(PROTO_SERIAL_FILE);
-        if(protoFile.exists()) {
-            protoFile.delete();
-        }
-        protoFile.createNewFile();
-        
         FileOutputStream output = new FileOutputStream(protoFile);
         person.writeTo(output);
     }
 
-    public static void protoRead() throws IOException {
+    public static void protoRead() throws Exception {
 
-        PersonWrapper.Person person =
-                PersonWrapper.Person.parseFrom(new FileInputStream(PROTO_SERIAL_FILE));
-        System.out.println(person);
+        PersonWrapper.Person person = PersonWrapper.Person.parseFrom(new FileInputStream(PROTO_SERIAL_FILE));
+        //System.out.println(person);
     }
 }
